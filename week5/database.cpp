@@ -5,23 +5,22 @@
 #include <map>
 #include <set>
 #include <iomanip>
+#include <sstream>
 
 class Date {
 public:
   Date() : day(0), month(0), year(0) {
   }
-  Date(const int& day, const int& month, const int& year) {
-    if(month < 1 && month > 12) {
-      throw std::logic_error("Month value is invalid: ");
+  Date(const int& in_year, const int& in_month, const int& in_day) {
+    year = in_year;
+    if(in_month < 1 || in_month > 12) {
+      throw std::logic_error("Month value is invalid: " + std::to_string(in_month));
     }
-    else if(day < 1 && day > 31) {
-      throw std::logic_error("Day value is invalid: ");
+    month = in_month;
+    if(in_day < 1 || in_day > 31) {
+      throw std::logic_error("Day value is invalid: " + std::to_string(in_day));
     }
-    else {
-      this->day = day;
-      this->month = month;
-      this->year = year;
-    }
+    day = in_day;
   }
   int GetYear() const {
     return year;
@@ -40,7 +39,7 @@ private:
 };
 
 bool operator<(const Date& lhs, const Date& rhs) {
-  if(lhs.GetYear() < rhs.GetYear()) {
+  /* if(lhs.GetYear() < rhs.GetYear()) {
     return true;
   } else if(lhs.GetYear() > rhs.GetYear()) {
     return false;
@@ -56,7 +55,8 @@ bool operator<(const Date& lhs, const Date& rhs) {
         return false;
       }
     }
-  }
+  } */
+  return std::vector<int>{lhs.GetYear(), lhs.GetMonth(), lhs.GetDay()} < std::vector<int>{rhs.GetYear(), rhs.GetMonth(), rhs.GetDay()};
 }
 
 bool operator==(const Date& lhs, const Date& rhs) {
@@ -68,7 +68,7 @@ std::ostream& operator<<(std::ostream& os, const Date& date) {
   return os;
 }
 
-std::istream& operator>>(std::istream& is, Date& date) {
+/* std::istream& operator>>(std::istream& is, Date& date) {
   int day, month, year;
   if((is >> year) && (is.ignore(1)) && (is >> month) && (is.ignore(1)) && (is >> day)) {
     if(month < 1 && month > 12) {
@@ -81,50 +81,71 @@ std::istream& operator>>(std::istream& is, Date& date) {
       date = {year, month, day};
     }
   }
+} */
+
+Date Pars(const std::string& date) {
+  std::stringstream is(date);
+  int year, month, day;
+
+  is >> year;
+  if(is.peek() != '-') {
+    throw std::logic_error("Wrong date format: " + date);
+  }
+
+  is.ignore(1);
+
+  is >> month;
+  if(is.peek() != '-') {
+    throw std::logic_error("Wrong date format: " + date);
+  }
+
+  is.ignore(1);
+
+  is >> day;
+
+  if(!is.eof()) {
+    throw std::logic_error("Wrong date format: " + date);
+  }
+
+  return Date(year, month, day);
 }
 
 class Database {
 public:
   void AddEvent(const Date& date, const std::string& event) {
-    if(!database.count(date)) {
-      if(!database[date].count(event)) {
-        database[date].insert(event);
-      }
-    }
+    database[date].insert(event);
   }
   bool DeleteEvent(const Date& date, const std::string& event) {
-    if(database[date].count(event)) {
+    if(database[date].count(event) && database[date].count(event)) {
       database[date].erase(event);
-      std::cout << "Deleted successfully" << std::endl;
+      return true;
     } else {
-      std::cout << "Event not found" << std::endl;
+      return false;
     }
   }
   int DeleteDate(const Date& date) {
-    int count = database[date].size();
-    database[date].clear();
-    std::cout << "Deleted " << count << " events" << std::endl;
+    if(!database.count(date)) {
+      return 0;
+    } 
+    else {
+      const int count = database[date].size();
+      database.erase(date);
+      return count;
+    }
   }
 
-  void Find(const Date& date) const {
-    for(const auto& d : database) {//      идём по map'е в поисках нужной даты
-      if(d.first == date) { //             ищем нужную дату
-        for(const auto& e : d.second) { // идём по контеёнеру set
-          std::cout << e << std::endl; //  и выводим содержимое
-        }
-        return;
-      }
-    }
+  std::set<std::string> Find(const Date& date) const {
+    if(database.count(date)) return database.at(date);
+    else return {};
   }
     
   void Print() const {
     for(const auto& d : database) { // идём по мапе
       if(d.first.GetYear() > 0){ // отсеиваем отрицательные года
-        std::cout << d.first; // выводим год
+        //std::cout << d.first; // выводим год
         for(const auto& e : d.second) { // идём по сету
-          std::cout << e << " "; // выводим каждый элемент сета через пробел
+          std::cout << d.first << " " << e << std::endl; // выводим каждый элемент сета через пробел
         }
-        std::cout << std::endl; // в конце ставим перевод строки
       }
     }
   }
@@ -133,29 +154,57 @@ private:
 };
 
 int main() {
+  try {
   Database db;
-
   std::string command;
+
   while (getline(std::cin, command)) {
-    if(command == "Add") {
-      try{
-        Date data;
+    std::string operation;
+    std::stringstream is(command);
+    is >> operation;
+    if(operation == "Add") {
+        std::string str_date;
         std::string event;
-        std::cin >> data >> event;
-        db.AddEvent(data, event);
-      } catch (std::logic_error& error) {
-        std::cout << error.what();
+        is >> str_date >> event;
+        Date date = Pars(str_date);
+        db.AddEvent(date, event);
+    }
+    else if(operation == "Find") {
+        std::string str_date;
+        is >> str_date;
+        Date date = Pars(str_date);
+        for (const auto& e : db.Find(date)) std::cout << e << std::endl;
+    }
+    else if(operation == "Del") {
+      std::string str_date;
+      std::string event;
+      is >> str_date;
+      Date date = Pars(str_date);
+      if(!is.eof()) {
+        is >> event;
+      }
+      if(!event.empty()) {
+        if(db.DeleteEvent(date, event)) {
+          std::cout << "Deleted successfully" << std::endl;
+        }
+        else {
+          std::cout << "Event not found" << std::endl;
+        }
+      } else {
+        std::cout << "Deleted " << db.DeleteDate(date) << " events" << std::endl;
       }
     }
-    else if(command == "Find") {
-      try {
-        Date date;
-        std::cin >> date;
-        db.Find(date);
-      } catch (std::logic_error& error) {
-        std::cout << error.what();
-      }
+    else if(operation == "Print") {
+      db.Print();
     }
+    else if(command.empty()) continue;
+    else {
+      std::cout << "Unknown command: " << operation << std::endl;
+      break;
+    }
+  }
+  } catch (std::logic_error& error) {
+    std::cout << error.what() << std::endl;
   }
 
   return 0;
